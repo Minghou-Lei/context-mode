@@ -16,40 +16,6 @@ Context Mode is an MCP server that solves both halves of this problem:
 
 https://github.com/user-attachments/assets/07013dbf-07c0-4ef1-974a-33ea1207637b
 
-## Platform Compatibility
-
-| Feature | Claude Code | Gemini CLI <sup>(Beta)</sup> | VS Code Copilot <sup>(Beta)</sup> | OpenCode <sup>(Beta)</sup> | Codex CLI <sup>(Beta)</sup> |
-|---|:---:|:---:|:---:|:---:|:---:|
-| MCP Server | Yes | Yes | Yes | Yes | Yes |
-| PreToolUse Hook | Yes | Yes | Yes | Plugin | -- |
-| PostToolUse Hook | Yes | Yes | Yes | Plugin | -- |
-| SessionStart Hook | Yes | Yes | Yes | -- | -- |
-| Can Modify Args | Yes | Yes | Yes | Plugin | -- |
-| Can Block Tools | Yes | Yes | Yes | Plugin | -- |
-| Utility Commands (ctx) | Yes | Yes | Yes | Yes | Yes |
-| Slash Commands | Yes | -- | -- | -- | -- |
-| Plugin Marketplace | Yes | -- | -- | -- | -- |
-
-> **OpenCode** uses a TypeScript plugin paradigm — hooks run as in-process functions via `tool.execute.before`, `tool.execute.after`, and `experimental.session.compacting`, providing the same routing enforcement and session continuity as shell-based hooks. SessionStart is not yet available ([#14808](https://github.com/sst/opencode/issues/14808)), but compaction recovery works via the plugin's compacting hook.
->
-> **Codex CLI** does not support hooks. It relies solely on routing instruction files (`AGENTS.md`) for enforcement (~60% compliance).
-
-### Routing Enforcement
-
-Hooks intercept tool calls programmatically — they can block dangerous commands and redirect them to the sandbox before execution. Instruction files guide the model via prompt instructions but cannot block anything. **Always enable hooks where supported.**
-
-| Platform | Hooks | Instruction File | With Hooks | Without Hooks |
-|---|:---:|---|:---:|:---:|
-| Claude Code | Yes (auto) | [`CLAUDE.md`](configs/claude-code/CLAUDE.md) | **~98% saved** | ~60% saved |
-| Gemini CLI | Yes | [`GEMINI.md`](configs/gemini-cli/GEMINI.md) | **~98% saved** | ~60% saved |
-| VS Code Copilot | Yes | [`copilot-instructions.md`](configs/vscode-copilot/copilot-instructions.md) | **~98% saved** | ~60% saved |
-| OpenCode | Plugin | [`AGENTS.md`](configs/opencode/AGENTS.md) | **~98% saved** | ~60% saved |
-| Codex CLI | -- | [`AGENTS.md`](configs/codex/AGENTS.md) | -- | ~60% saved |
-
-Without hooks, one unrouted `curl` or Playwright snapshot can dump 56 KB into context — wiping out an entire session's worth of savings.
-
-See [`docs/platform-support.md`](docs/platform-support.md) for the full capability comparison.
-
 ## Install
 
 <details open>
@@ -400,6 +366,40 @@ Detailed event data is also indexed into FTS5 for on-demand retrieval via `searc
 **Codex CLI** — No session support. No hooks means no event capture. Each compaction or new session starts fresh. The `AGENTS.md` routing instructions file is the only continuity mechanism.
 
 </details>
+
+## Platform Compatibility
+
+| Feature | Claude Code | Gemini CLI <sup>(Beta)</sup> | VS Code Copilot <sup>(Beta)</sup> | OpenCode <sup>(Beta)</sup> | Codex CLI <sup>(Beta)</sup> |
+|---|:---:|:---:|:---:|:---:|:---:|
+| MCP Server | Yes | Yes | Yes | Yes | Yes |
+| PreToolUse Hook | Yes | Yes | Yes | Plugin | -- |
+| PostToolUse Hook | Yes | Yes | Yes | Plugin | -- |
+| SessionStart Hook | Yes | Yes | Yes | -- | -- |
+| Can Modify Args | Yes | Yes | Yes | Plugin | -- |
+| Can Block Tools | Yes | Yes | Yes | Plugin | -- |
+| Utility Commands (ctx) | Yes | Yes | Yes | Yes | Yes |
+| Slash Commands | Yes | -- | -- | -- | -- |
+| Plugin Marketplace | Yes | -- | -- | -- | -- |
+
+> **OpenCode** uses a TypeScript plugin paradigm — hooks run as in-process functions via `tool.execute.before`, `tool.execute.after`, and `experimental.session.compacting`, providing the same routing enforcement and session continuity as shell-based hooks. SessionStart is not yet available ([#14808](https://github.com/sst/opencode/issues/14808)), but compaction recovery works via the plugin's compacting hook.
+>
+> **Codex CLI** does not support hooks. It relies solely on routing instruction files (`AGENTS.md`) for enforcement (~60% compliance).
+
+### Routing Enforcement
+
+Hooks intercept tool calls programmatically — they can block dangerous commands and redirect them to the sandbox before execution. Instruction files guide the model via prompt instructions but cannot block anything. **Always enable hooks where supported.**
+
+| Platform | Hooks | Instruction File | With Hooks | Without Hooks |
+|---|:---:|---|:---:|:---:|
+| Claude Code | Yes (auto) | [`CLAUDE.md`](configs/claude-code/CLAUDE.md) | **~98% saved** | ~60% saved |
+| Gemini CLI | Yes | [`GEMINI.md`](configs/gemini-cli/GEMINI.md) | **~98% saved** | ~60% saved |
+| VS Code Copilot | Yes | [`copilot-instructions.md`](configs/vscode-copilot/copilot-instructions.md) | **~98% saved** | ~60% saved |
+| OpenCode | Plugin | [`AGENTS.md`](configs/opencode/AGENTS.md) | **~98% saved** | ~60% saved |
+| Codex CLI | -- | [`AGENTS.md`](configs/codex/AGENTS.md) | -- | ~60% saved |
+
+Without hooks, one unrouted `curl` or Playwright snapshot can dump 56 KB into context — wiping out an entire session's worth of savings.
+
+See [`docs/platform-support.md`](docs/platform-support.md) for the full capability comparison.
 
 ## Utility Commands
 
