@@ -178,6 +178,9 @@ function getDBPath(projectDir: string): string {
 
 // ── Plugin Definition (object export) ─────────────────────
 
+// Guard against double-registration (OpenClaw may call register() more than once per process)
+let _registered = false;
+
 /**
  * OpenClaw plugin definition. The object form provides declarative metadata
  * (id, name, configSchema) that OpenClaw can read without executing code.
@@ -191,6 +194,9 @@ export default {
   // OpenClaw calls register() synchronously — returning a Promise causes hooks
   // to be silently ignored. Async init runs eagerly; hooks await it on first use.
   register(api: OpenClawPluginApi): void {
+    if (_registered) return;
+    _registered = true;
+
     // Resolve build dir from compiled JS location
     const buildDir = dirname(fileURLToPath(import.meta.url));
     const projectDir = process.env.OPENCLAW_PROJECT_DIR || process.cwd();
@@ -207,7 +213,8 @@ export default {
     };
 
     // Initialize session synchronously (SessionDB constructor is sync)
-    const db = new SessionDB({ dbPath: getDBPath(projectDir) });
+    const dbPath = getDBPath(projectDir);
+    const db = new SessionDB({ dbPath });
     db.cleanupOldSessions(7);
     // Start with temp UUID — session_start will assign the real ID + sessionKey
     let sessionId = randomUUID();
@@ -419,6 +426,7 @@ export default {
           if (!sid) return;
 
           const key = e?.sessionKey;
+
           if (key) {
             // Per-agent session lookup via sessionKey
             const prevId = db.getMostRecentSession(key);
