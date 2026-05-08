@@ -53,6 +53,47 @@ function safeStringAny(value: unknown): string {
   return typeof value === "string" ? value : JSON.stringify(value);
 }
 
+interface ApplyPatchTarget {
+  path: string;
+  type: "file_write" | "file_edit";
+}
+
+function extractApplyPatchTargets(command: string): ApplyPatchTarget[] {
+  if (!command) return [];
+
+  const targets: ApplyPatchTarget[] = [];
+  for (const line of command.split(/\r?\n/)) {
+    if (line.startsWith("*** Add File: ")) {
+      targets.push({ path: line.slice(14).trim(), type: "file_write" });
+      continue;
+    }
+    if (line.startsWith("*** Update File: ")) {
+      targets.push({ path: line.slice(17).trim(), type: "file_edit" });
+      continue;
+    }
+    if (line.startsWith("*** Delete File: ")) {
+      targets.push({ path: line.slice(17).trim(), type: "file_edit" });
+      continue;
+    }
+    if (line.startsWith("*** Move to: ")) {
+      targets.push({ path: line.slice(13).trim(), type: "file_edit" });
+    }
+  }
+
+  const seen = new Set<string>();
+  return targets.filter((target) => {
+    if (!target.path) return false;
+    const key = `${target.type}:${target.path}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function isPlanFilePath(filePath: string): boolean {
+  return /(?:^|[/\\])\.claude[/\\]plans[/\\]/.test(filePath);
+}
+
 // ── Category extractors ────────────────────────────────────────────────────
 
 /**
@@ -149,6 +190,21 @@ function extractFileAndRule(input: HookInput): SessionEvent[] {
       data: safeString(filePath),
       priority: 1,
     });
+    return events;
+  }
+
+  if (tool_name === "apply_patch") {
+    const patchTargets = extractApplyPatchTargets(
+      String(tool_input["command"] ?? tool_input["patch"] ?? ""),
+    );
+    for (const target of patchTargets) {
+      events.push({
+        type: target.type,
+        category: "file",
+        data: safeString(target.path),
+        priority: 1,
+      });
+    }
     return events;
   }
 
@@ -351,7 +407,7 @@ function extractPlan(input: HookInput): SessionEvent[] {
   // Detect plan file writes (Write/Edit to ~/.claude/plans/)
   if (input.tool_name === "Write" || input.tool_name === "Edit") {
     const filePath = String(input.tool_input["file_path"] ?? "");
-    if (/[/\\]\.claude[/\\]plans[/\\]/.test(filePath)) {
+    if (isPlanFilePath(filePath)) {
       return [{
         type: "plan_file_write",
         category: "plan",
@@ -359,6 +415,20 @@ function extractPlan(input: HookInput): SessionEvent[] {
         priority: 2,
       }];
     }
+  }
+
+  if (input.tool_name === "apply_patch") {
+    const patchTargets = extractApplyPatchTargets(
+      String(input.tool_input["command"] ?? input.tool_input["patch"] ?? ""),
+    );
+    return patchTargets
+      .filter((target) => isPlanFilePath(target.path))
+      .map((target) => ({
+        type: "plan_file_write",
+        category: "plan",
+        data: safeString(`plan file: ${target.path.split(/[/\\]/).pop() ?? target.path}`),
+        priority: 2,
+      }));
   }
 
   return [];
@@ -909,7 +979,8 @@ function extractErrorResolution(input: HookInput): SessionEvent[] {
   // Check if this is a resolution: same tool, or Edit/Write after a Read error
   const sameTool = tool_name === lastError.tool;
   const editAfterReadError =
-    lastError.tool === "Read" && (tool_name === "Edit" || tool_name === "Write");
+    lastError.tool === "Read"
+    && (tool_name === "Edit" || tool_name === "Write" || tool_name === "apply_patch");
 
   if (sameTool || editAfterReadError) {
     const event: SessionEvent = {
